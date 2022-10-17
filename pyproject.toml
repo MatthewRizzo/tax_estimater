@@ -1,0 +1,13 @@
+[tool.poetry]
+name = "Tax Estimater"
+version = "0.1.0"
+description = "Estimates taxes. Useful for financial planning."
+authors = ["Matt Rizzo <mattrizzo21@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+mattrizzo-devops = {git = "https://github.com/MatthewRizzo/mattrizzo_devops"}
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

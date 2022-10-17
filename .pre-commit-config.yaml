@@ -2,19 +2,46 @@ repos:
 -   repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.1.0
     hooks:
-    -   id: trailing-whitespace
-    -   id: end-of-file-fixer
     -   id: check-docstring-first
     -   id: check-json
+    -   id: check-toml
     -   id: check-yaml
     -   id: debug-statements
+    -   id: end-of-file-fixer
+    -   id: file-contents-sorter
     -   id: name-tests-test
+    -   id: pretty-format-json
     -   id: requirements-txt-fixer
+    -   id: trailing-whitespace
+-   repo: https://github.com/MatthewRizzo/mattrizzo_devops
+    rev: 0.1.0
+    hooks:
+    -   id: check-rust
+        name: Check Rust
+        description: Check Rust files for fmt and clippy errors
+        entry: poetry run check-rust
+        language: system
+        stages: [push]
 -   repo: local
     hooks:
-    - id: markdown-linter
-      name: markdown-linter
-      entry: mdl
-      language: ruby
-      files: \.(md|mdown|markdown)$
-      stages: [commit]
+    -   id: markdown-linter
+        name: markdown-linter
+        entry: mdl
+        language: ruby
+        files: \.(md|mdown|markdown)$
+        stages: [commit]
+    -   id: pylint
+        name: pylint
+        entry: poetry run pylint
+        language: system
+        types: [python]
+        args:
+          [
+            "-rn",
+            "-sn",
+          ]
+    -   id: mypy
+        name: Python Typing - mypy
+        entry: poetry run mypy -p hooks
+        language: system
+        types: [python]
