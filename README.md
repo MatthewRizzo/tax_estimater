@@ -5,6 +5,20 @@ for financial planning. Implemented in Rust (yay!)
 
 ## Development
 
+### Short Development Install
+
+Just run the following and everything will be handled for you!
+
+```bash
+
+curl -SL https://raw.githubusercontent.com/MatthewRizzo/mattrizzo_devops/main/bootstrap.sh | sudo bash
+
+```
+
+### Long Development Install
+
+This is a more long-winded explanation.
+
 This repository runs pre-commit hooks using
 [`pre-commit`](https://pre-commit.com/). As part of that hook, a markdown linter
 ([`mdl`](https://github.com/markdownlint/markdownlint)) is used. If you want to
@@ -39,4 +53,4 @@ If you want to speed up this process even more, download the
 [boostrap.sh](https://github.com/MatthewRizzo/mattrizzo_devops/blob/main/bootstrap.sh)
 script.
 
-Run it with `sudo ./boostrap.sh`, and everything will
+Run it with `sudo ./boostrap.sh`, and everything will be installed.
