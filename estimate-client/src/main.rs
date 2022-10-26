@@ -1,7 +1,7 @@
 //! Exposes the client-cli as an executable
 
 mod cli;
-pub (crate) mod client;
+pub(crate) mod client;
 
 use cli::run_cli;
 
