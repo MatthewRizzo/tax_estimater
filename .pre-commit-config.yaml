@@ -14,12 +14,12 @@ repos:
     -   id: requirements-txt-fixer
     -   id: trailing-whitespace
 -   repo: https://github.com/MatthewRizzo/mattrizzo_devops
-    rev: 1.2.2
+    rev: 1.2.3
     hooks:
     -   id: check-rust
         name: Check Rust
         description: Check Rust files for fmt and clippy errors
-        entry: poetry run check-rust
+        entry: poetry run check-rust -d estimate-client
         language: system
         stages: [push]
     -   id: mypy
