@@ -48,9 +48,3 @@ python -m pip install poetry
 poetry install
 # Done!
 ```
-
-If you want to speed up this process even more, download the
-[boostrap.sh](https://github.com/MatthewRizzo/mattrizzo_devops/blob/main/bootstrap.sh)
-script.
-
-Run it with `sudo ./boostrap.sh`, and everything will be installed.
