@@ -1,0 +1,8 @@
+[package]
+name = "estimate-client"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = "4.0.18"
+estimate-server = {path = "../estimate-server"}
