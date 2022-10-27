@@ -117,7 +117,7 @@ python-versions = ">=3.7"
 
 [[package]]
 name = "mattrizzo-devops"
-version = "1.2.3"
+version = "1.2.4"
 description = "Repository containing all things related to CI and devops for any code I develop"
 category = "main"
 optional = false
@@ -134,7 +134,7 @@ pylint = "^2.15.4"
 type = "git"
 url = "https://github.com/MatthewRizzo/mattrizzo_devops"
 reference = "HEAD"
-resolved_reference = "e69f9135aed77113875fce549b3ba585523a6ab6"
+resolved_reference = "c94a4ce140420b0a23abfa05e411b295c730642f"
 
 [[package]]
 name = "mccabe"
