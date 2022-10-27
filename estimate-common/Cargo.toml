@@ -1,12 +1,9 @@
 [package]
-name = "estimate-client"
+name = "estimate-common"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 clap = { version = "4.0.18", features = [ "derive", "suggestions", "color" ]}
-estimate-server = {path = "../estimate-server"}
-estimate-common = {path = "../estimate-common"}
 serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0.48"
-thiserror = "1.0.37"

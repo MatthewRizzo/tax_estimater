@@ -2,10 +2,9 @@
 
 mod cli;
 pub(crate) mod client;
-
-use cli::run_cli;
+mod errors;
 
 // Expose cli as the main executable
 pub fn main() {
-    run_cli();
+    cli::run_cli()
 }
