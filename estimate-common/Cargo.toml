@@ -7,3 +7,4 @@ edition = "2021"
 clap = { version = "4.0.18", features = [ "derive", "suggestions", "color" ]}
 serde = { version = "1.0.104", features = ["derive"] }
 serde_json = "1.0.48"
+thiserror = "1.0.37"

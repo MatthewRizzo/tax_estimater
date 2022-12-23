@@ -49,6 +49,10 @@ poetry install
 # Done!
 ```
 
+## Currently Cannot Handle
+
+* Misc withholdings. i.e. Family leave, medicare, social security
+
 ## TODO
 
 * Add json for federal tax bracket - map income brackets -> tax rate

@@ -4,11 +4,12 @@ use clap::{Args, Parser, Subcommand};
 use serde::Deserialize;
 use std::{fmt::Write, fs::File, io::BufReader};
 
-use crate::{
-    client,
+use crate::client;
+
+use estimate_common::{
+    common::{TaxInfo, TaxResults},
     errors::{EstimaterErrors, EstimaterResult},
 };
-use estimate_common::common::TaxInfo;
 
 /// Simple program to greet a person
 #[derive(Parser, Debug)]
@@ -81,9 +82,8 @@ impl FromConfigStruct {
 
 impl EstimateCommands {
     /// Runs the commands after parsing
-    pub fn run_command(cmd: EstimateCommands) -> EstimaterResult<()> {
-        client::get_server_status();
-        match cmd {
+    pub fn run_command(cmd: EstimateCommands) -> EstimaterResult<TaxResults> {
+        let info = match cmd {
             EstimateCommands::Config(from_config_struct) => {
                 // TODO - read in from a config file path'd
                 println!(
@@ -92,28 +92,27 @@ impl EstimateCommands {
                 );
                 let tax_info: TaxInfo = from_config_struct.validate_config_file()?;
                 println!("{}", tax_info);
-                Ok(())
+                tax_info
             }
             EstimateCommands::CliArgs(tax_info) => {
                 println!("{}", tax_info);
-                todo!()
+                tax_info
             }
-        }
+        };
+        client::calculate_taxes(info)
     }
 }
 /// Entrance to the client by parsing CLI values and running commands
 pub(crate) fn run_cli() {
-    println!("Running cli!");
-
     let args = EstimateCli::parse();
-    let cmd_res = EstimateCommands::run_command(args.command);
+    let cmd_res: EstimaterResult<TaxResults> = EstimateCommands::run_command(args.command);
 
     match cmd_res {
         Err(err) => {
             println!("Error Running command : <print cmd>.\n Error: {}", err);
         }
-        Ok(_res) => {
-            println!("\n");
+        Ok(tax_results) => {
+            println!("{}", tax_results);
         }
     }
 }

@@ -2,7 +2,6 @@
 
 mod cli;
 pub(crate) mod client;
-mod errors;
 
 // Expose cli as the main executable
 pub fn main() {

@@ -1,9 +1,9 @@
 use thiserror::Error;
 
-pub(crate) type EstimaterResult<T> = std::result::Result<T, EstimaterErrors>;
+pub type EstimaterResult<T> = std::result::Result<T, EstimaterErrors>;
 
 #[derive(Error, Debug)]
-pub(crate) enum EstimaterErrors {
+pub enum EstimaterErrors {
     // #[error("Errors relating to a client interfacing with server")]
     // ClientErrors(String),
     // #[error("Errors internal to the client itself")]
