@@ -53,3 +53,4 @@ poetry install
 
 * Add json for federal tax bracket - map income brackets -> tax rate
 * Add json for state tax brackets
+* Implement a true "Server" using protobufs and async threading
