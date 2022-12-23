@@ -22,6 +22,9 @@ pub(crate) struct EstimateCli {
 enum EstimateCommands {
     /// Path to data file (in json format) representing what to process
     Config(FromConfigStruct),
+
+    /// Manually input data via command line flags
+    #[clap(name = "input")]
     CliArgs(TaxInfo),
 }
 
