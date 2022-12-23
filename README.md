@@ -48,3 +48,8 @@ python -m pip install poetry
 poetry install
 # Done!
 ```
+
+## TODO
+
+* Add json for federal tax bracket - map income brackets -> tax rate
+* Add json for state tax brackets
