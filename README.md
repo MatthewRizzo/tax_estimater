@@ -3,6 +3,18 @@
 Playing around with estimating taxes in a programatic / variatic way. Useful
 for financial planning. Implemented in Rust (yay!)
 
+## Running the Project
+
+Simply build / run using the client!
+
+```bash
+cargo run --manifest-path=estimate-client/Cargo.toml
+
+## Or cd to the client dir
+cd estimate-client
+cargo run
+```
+
 ## Development
 
 ### Short Development Install
