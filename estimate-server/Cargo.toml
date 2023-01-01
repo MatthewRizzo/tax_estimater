@@ -5,3 +5,11 @@ edition = "2021"
 
 [dependencies]
 estimate-common = {path = "../estimate-common"}
+
+[lib]
+name = "estimate_server"
+path = "src/lib.rs"
+
+[[bin]]
+name = "estimate_server_cli"
+path = "src/bin/server_bin.rs"
