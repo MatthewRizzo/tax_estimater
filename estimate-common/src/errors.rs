@@ -12,4 +12,6 @@ pub enum EstimaterErrors {
     ParsingError(String),
     #[error("Errors due to user input")]
     UserError(String),
+    #[error("Errors due to the server internally failing")]
+    ServerError(String),
 }

@@ -9,8 +9,8 @@ pub fn calculate_taxes(input_info: TaxInfo) -> EstimaterResult<TaxResults> {
     println!("taxable income {}", intermediate.taxable_income);
     let federal_tax = intermediate.taxable_income * (input_info.federal_tax_rate_percent / 100.0);
     let state_tax = intermediate.taxable_income * (input_info.state_tax_rate_percent / 100.0);
-    let net_income = (input_info.gross_yearly_income as f32) -
-        - (federal_tax * intermediate.taxable_income)
+    let net_income = (input_info.gross_yearly_income as f32)
+        - -(federal_tax * intermediate.taxable_income)
         - (state_tax * intermediate.taxable_income);
     Ok(TaxResults::new(federal_tax, state_tax, net_income))
 }
