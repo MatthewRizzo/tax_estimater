@@ -8,12 +8,12 @@ pub struct TaxInfo {
     pub gross_yearly_income: u64,
     #[clap(long = "federal")]
     /// Federal tax as a %
-    pub federal_tax_rate_percent: f32,
+    pub federal_tax_rate_percent: f64,
     #[clap(long = "state")]
     /// State tax as a %
-    pub state_tax_rate_percent: f32,
+    pub state_tax_rate_percent: f64,
     #[clap(short, long = "pre-tax-deductions")]
-    pub pre_tax_deducations: f32,
+    pub pre_tax_deducations: f64,
 }
 
 impl fmt::Display for TaxInfo {
@@ -32,15 +32,15 @@ impl fmt::Display for TaxInfo {
 /// Struct representing the results of calculating taxes
 pub struct TaxResults {
     /// Amount taken for federal taxes
-    pub federal_tax: f32,
+    pub federal_tax: f64,
     /// Amount taken for state taxes
-    pub state_tax: f32,
+    pub state_tax: f64,
     /// Amount leftover after taxes + pre-tax removals
-    pub net_income: f32,
+    pub net_income: f64,
 }
 
 impl TaxResults {
-    pub fn new(federal_tax: f32, state_tax: f32, net_income: f32,) -> Self {
+    pub fn new(federal_tax: f64, state_tax: f64, net_income: f64,) -> Self {
         Self {
             federal_tax,
             state_tax,
