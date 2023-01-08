@@ -1,11 +1,13 @@
-use serde::Deserialize;
-use serde_valid::Validate;
-use std::cmp::Ordering;
 /// Implements the concept of tax brackets. Usable for both state and federal
 /// income taxes.
-use std::fmt;
+use serde::Deserialize;
+use serde_valid::Validate;
+use std::{cmp::Ordering, fmt, fs::File, io::BufReader, path::PathBuf};
 
 use estimate_common::errors::{BracketErrors, EstimaterErrors, EstimaterResult};
+
+type BracketResult<T> = std::result::Result<T, BracketErrors>;
+
 /// Struct representing all tax brackets that exist.
 #[derive(Debug, Deserialize)]
 pub(crate) struct TaxBrackets {
@@ -35,6 +37,30 @@ pub(crate) struct BracketInfo {
 }
 
 impl TaxBrackets {
+    /// Attempts to read from the json containing tax bracket info.
+    ///
+    /// # Return
+    ///
+    /// * Error if file doesn't exist (or something else)
+    /// * Success: TaxBracket instance with sorted tax brackets.
+    pub(crate) fn from_bracket_json(path: PathBuf) -> EstimaterResult<Self> {
+        let file = File::open(&path);
+        if let Ok(opened_file) = file {
+            let read_buffer = BufReader::new(opened_file);
+            let mut brackets: TaxBrackets = serde_json::from_reader(read_buffer)
+                .map_err(EstimaterErrors::SerdeDeserializeError)?;
+            brackets.sort_brackets();
+            brackets.tabulate_cumulative_taxes();
+            brackets.validate_all_brackets()?;
+            Ok(brackets)
+        } else {
+            Err(EstimaterErrors::FileError(format!(
+                "The file {:?} does not exist",
+                path
+            )))
+        }
+    }
+
     /// Resorts all brackets to be in the correct order
     pub fn sort_brackets(&mut self) {
         self.brackets.sort();
@@ -101,6 +127,40 @@ impl TaxBrackets {
 
         Ok(())
     }
+
+    /// Calculate the total amount of taxes that need to be
+    /// paid on a given gross income.
+    ///
+    /// # Params
+    /// * `self` - The tax bracket info needed.
+    /// * `taxable_income` - The taxable income to apply the bracket too
+    ///
+    /// # Return
+    /// The amount to pay in taxes
+    pub(crate) fn calculate_tax_amount(&self, taxable_income: f64) -> EstimaterResult<f64> {
+        let tax_bracket_index = self.determine_correct_bracket(&taxable_income)?;
+        let bracket_info = &self.brackets[tax_bracket_index];
+        bracket_info.calculate_bracket_taxes(taxable_income)
+    }
+
+    /// Given a taxable income. Determines the correct top bracket to put it in.
+    ///
+    /// # Result
+    /// * The bracket index if it exists
+    /// * `Err` - If the income does not have a valid bracket
+    fn determine_correct_bracket(&self, taxable_income: &f64) -> BracketResult<usize> {
+        self.brackets
+            .iter()
+            .position(|cur_bracket| {
+                taxable_income >= &(cur_bracket.bracket_min as f64)
+                    && taxable_income <= &(cur_bracket.bracket_max as f64)
+            })
+            .ok_or_else(|| {
+                BracketErrors::LargeIncomeError(format!(
+                    "The income {taxable_income} does not fit in ANY tax bracket"
+                ))
+            })
+    }
 }
 
 impl fmt::Display for TaxBrackets {
@@ -109,7 +169,7 @@ impl fmt::Display for TaxBrackets {
         for bracket in self.brackets.iter() {
             write!(f, "{}", bracket)?;
         }
-        write!(f, "")
+        writeln!(f)
     }
 }
 
@@ -189,16 +249,16 @@ impl BracketInfo {
     ///
     /// * The tax amount if successful
     /// * `EstimaterErrors::BracketError` when the income is outside the bounds of taxable range
-    pub fn calculate_bracket_taxes(&self, taxable_income: u64) -> EstimaterResult<f64> {
-        let tax = self.tax_rate * taxable_income as f64;
+    pub fn calculate_bracket_taxes(&self, taxable_income: f64) -> EstimaterResult<f64> {
+        let tax = self.tax_rate * taxable_income;
         Ok(Self::round_to_hundredths(tax))
     }
 
     /// Calculates the (tabulated) maximum tax resulting from this tax bracket. i.e. the graduated
     /// taxes from this bracket if it is exceeded.
-    pub(self) fn calculate_bracket_tabulated_maximum(&self) -> EstimaterResult<f64> {
+    fn calculate_bracket_tabulated_maximum(&self) -> EstimaterResult<f64> {
         let taxable_amount = self.bracket_max - self.bracket_min;
-        self.calculate_bracket_taxes(taxable_amount)
+        self.calculate_bracket_taxes(taxable_amount as f64)
     }
 
     /// A lot of tax documents only use 2 decimal sig-figs. To align our
@@ -233,6 +293,131 @@ impl Eq for BracketInfo {}
 
 #[cfg(test)]
 mod tests {
-    // TODO: write tests here
-    // #[test]
+    use super::*;
+
+    /// Helper function to assert the result is Ok() and matches the given param
+    fn help_assert_result<T, ErrorType>(
+        result_to_check: std::result::Result<T, ErrorType>,
+        expected_res: T,
+        additional_fail_msg: &str,
+    ) where
+        T: PartialEq<T>,
+        T: std::fmt::Display,
+        ErrorType: std::fmt::Display,
+        ErrorType: std::fmt::Debug,
+    {
+        match result_to_check {
+            Err(err) => assert!(
+                false,
+                "{}",
+                format!(
+                    "Expected {expected_res}, got err: {:?} for {additional_fail_msg}",
+                    err
+                )
+            ),
+            Ok(res) => {
+                if res == expected_res {
+                    assert!(true)
+                } else {
+                    let err_msg =
+                        format!("Expected {expected_res}, got {res} for {additional_fail_msg}");
+                    assert!(false, "{err_msg}")
+                }
+            }
+        }
+    }
+
+    // helper to generate some brackets from a json string
+    fn help_make_test_brackets() -> TaxBrackets {
+        let bracket_json_str = r#"{
+            "brackets": [
+                {
+                    "bracket_max": 10275,
+                    "bracket_min": 0,
+                    "cumulative_previous_tax": 0.0,
+                    "tax_rate": 0.1
+                  },
+                  {
+                    "bracket_max": 41776,
+                    "bracket_min": 10276,
+                    "cumulative_previous_tax": 1027.5,
+                    "tax_rate": 0.12
+                  }
+            ]
+        }"#;
+        return serde_json::from_str(bracket_json_str).unwrap();
+    }
+
+    #[test]
+    fn test_check_for_bracket_overlap() {
+        let non_overlap_bracket = help_make_test_brackets();
+        let overlap_bracket_json_str = r#"{
+            "brackets": [
+                {
+                    "bracket_max": 10275,
+                    "bracket_min": 0,
+                    "cumulative_previous_tax": 0.0,
+                    "tax_rate": 0.1
+                  },
+                  {
+                    "bracket_max": 30000,
+                    "bracket_min": 500,
+                    "cumulative_previous_tax": 1027.5,
+                    "tax_rate": 0.12
+                  }
+            ]
+        }"#;
+        let overlap_bracket: TaxBrackets = serde_json::from_str(overlap_bracket_json_str).unwrap();
+
+        assert!(
+            non_overlap_bracket.validate_all_brackets().is_ok(),
+            "Validating all brackets (without overlap), failed"
+        );
+        assert!(
+            overlap_bracket.validate_all_brackets().is_err(),
+            "Valdiating brackets with overlap did not error as expected"
+        );
+    }
+
+    #[test]
+    fn test_determine_correct_bracket() {
+        let brackets = help_make_test_brackets();
+        help_assert_result(brackets.determine_correct_bracket(&0.0), 0, "input of 0.0");
+        help_assert_result(
+            brackets.determine_correct_bracket(&1000.0),
+            0,
+            "input of 1000.0",
+        );
+        help_assert_result(
+            brackets.determine_correct_bracket(&10000.0),
+            0,
+            "input of 10000.0",
+        );
+        help_assert_result(
+            brackets.determine_correct_bracket(&10275.0),
+            0,
+            "input of 10275.0",
+        );
+        help_assert_result(
+            brackets.determine_correct_bracket(&10276.0),
+            1,
+            "input of 10276.0",
+        );
+        help_assert_result(
+            brackets.determine_correct_bracket(&15000.0),
+            1,
+            "input of 15000.0",
+        );
+    }
+
+    #[test]
+    fn test_calculate_taxes() {
+        let brackets = help_make_test_brackets();
+        help_assert_result(brackets.calculate_tax_amount(0.0), 0.0, "input of 0.0");
+        help_assert_result(
+            brackets.calculate_tax_amount(10275.0),
+            1027.5,
+            "input of 10275.0",
+        );
+    }
 }
