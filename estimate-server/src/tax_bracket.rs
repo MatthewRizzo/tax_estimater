@@ -72,8 +72,10 @@ impl TaxBrackets {
         }
     }
 
+    /// # Pre-condition
+    /// The brackets are sorted!
     pub(crate) fn validate_all_brackets(&self) -> EstimaterResult<()> {
-        for bracket in self.brackets.iter() {
+        for (bracket_idx, bracket) in self.brackets.iter().enumerate() {
             // BracketInfo::validate_new_bracket(bracket.bracket_min, bracket.bracket_max, bracket.tax_rate)
             let val_res = BracketInfo::validate_new_bracket(
                 bracket.bracket_min,
@@ -83,6 +85,17 @@ impl TaxBrackets {
 
             if let Err(err) = val_res {
                 Err(EstimaterErrors::BracketError(err))?
+            }
+
+            if bracket_idx > 0 && bracket.check_for_bracket_overlap(&self.brackets[bracket_idx - 1])
+            {
+                let err_msg = format!(
+                    "Overlap of bracket {bracket} and {}",
+                    self.brackets[bracket_idx - 1]
+                );
+                Err(EstimaterErrors::BracketError(BracketErrors::OverlapError(
+                    err_msg,
+                )))?
             }
         }
 
@@ -155,6 +168,19 @@ impl BracketInfo {
         } else {
             Ok(())
         }
+    }
+
+    /// Checks if there is overlap between 2 brackets from the perspective of self.
+    /// Overlap is found when:
+    /// The min of 1 bracket is between the min and max of another
+    /// OR
+    /// The max of 1 bracket is between the min and max of another
+    pub(crate) fn check_for_bracket_overlap(&self, other: &Self) -> bool {
+        let is_min_within_other: bool =
+            self.bracket_min >= other.bracket_min && self.bracket_min <= other.bracket_max;
+        let is_max_within_other: bool =
+            self.bracket_max >= other.bracket_min && self.bracket_max <= other.bracket_max;
+        is_min_within_other || is_max_within_other
     }
 
     /// Calculates the taxes for the current bracket.
