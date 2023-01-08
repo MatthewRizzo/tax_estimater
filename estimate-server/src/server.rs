@@ -18,8 +18,7 @@ pub fn calculate_taxes(input_info: TaxInfo) -> EstimaterResult<TaxResults> {
     println!("taxable income {}", intermediate.taxable_income);
 
     // TODO: Add path to json file as part of Client CLI input / what is passed to server
-    let tax_brackets = read_from_bracket_json(get_path_to_data().unwrap())?;
-    print!("{}", tax_brackets);
+    let tax_brackets = deserialize_bracket_json(get_path_to_data().unwrap())?;
 
     let federal_tax = intermediate.taxable_income * (input_info.federal_tax_rate_percent / 100.0);
     let state_tax = intermediate.taxable_income * (input_info.state_tax_rate_percent / 100.0);
@@ -57,7 +56,7 @@ fn get_path_to_data() -> io::Result<PathBuf> {
 ///
 /// * Error if file doesn't exist (or something else)
 /// * Success: The read in json value
-fn read_from_bracket_json(path: PathBuf) -> EstimaterResult<TaxBrackets> {
+fn deserialize_bracket_json(path: PathBuf) -> EstimaterResult<TaxBrackets> {
     let file = File::open(&path);
     if let Ok(opened_file) = file {
         let read_buffer = BufReader::new(opened_file);
@@ -84,7 +83,9 @@ mod tests {
         // let path = "data/federal_tax_bracket.json";
         let path = get_path_to_data();
         assert!(path.is_ok(), "Path should be ok, but is {:?}", path.err());
-        let data = read_from_bracket_json(path.unwrap());
+        let data = deserialize_bracket_json(path.unwrap());
         assert!(data.is_ok(), "data should be ok, but is {:?}", data.err())
     }
+
+    // TODO: test actual gross income inputs
 }
