@@ -15,9 +15,11 @@ pub(crate) struct TaxBrackets {
 /// Struct representing an individual tax bracket
 #[derive(Debug, Deserialize, Validate)]
 pub(crate) struct BracketInfo {
-    /// The lower limit (inclusive) that this tax bracket is a part pf
+    /// The lower limit (inclusive) that this tax bracket is a part of.
+    /// CANNOT overlap with max of previous!
     pub bracket_min: u64,
-    /// The lower limit (non-envlusive) that this tax bracket is part of
+    /// The lower limit (inclusive) that this tax bracket is part of
+    /// CANNOT overlap with min of next bracket!
     pub bracket_max: u64,
     /// The percentage tax rate that is applied to the amount within this tax
     /// bracket. i.e. this rate gets applied to `value` in `lower_limit` <= `value` < `upper_limit`.
@@ -63,7 +65,6 @@ impl TaxBrackets {
                     existing_cumalitive, total_cumalitive, bracket)
                 }
             }
-            println!("previous: {}", total_cumalitive);
             total_cumalitive =
                 BracketInfo::round_to_hundredths(total_cumalitive + cur_max_tax.unwrap());
 
