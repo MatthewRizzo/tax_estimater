@@ -7,7 +7,7 @@
       "tax_rate": 0.1
     },
     {
-      "bracket_max": 41776,
+      "bracket_max": 41775,
       "bracket_min": 10276,
       "cumulative_previous_tax": 1027.5,
       "tax_rate": 0.12
@@ -15,31 +15,31 @@
     {
       "bracket_max": 89075,
       "bracket_min": 41776,
-      "cumulative_previous_tax": 4807.5,
+      "cumulative_previous_tax": 4807.38,
       "tax_rate": 0.22
     },
     {
-      "bracket_max": 170051,
-      "bracket_min": 89075,
-      "cumulative_previous_tax": 15213.28,
+      "bracket_max": 170050,
+      "bracket_min": 89076,
+      "cumulative_previous_tax": 15213.16,
       "tax_rate": 0.24
     },
     {
       "bracket_max": 215950,
       "bracket_min": 170051,
-      "cumulative_previous_tax": 34647.52,
+      "cumulative_previous_tax": 34646.92,
       "tax_rate": 0.32
     },
     {
       "bracket_max": 539900,
       "bracket_min": 215951,
-      "cumulative_previous_tax": 49335.2,
+      "cumulative_previous_tax": 49334.6,
       "tax_rate": 0.35
     },
     {
-      "bracket_max": 1000000,
+      "bracket_max": 1000000000000,
       "bracket_min": 539901,
-      "cumulative_previous_tax": 162717.35,
+      "cumulative_previous_tax": 162716.75,
       "tax_rate": 0.37
     }
   ]
