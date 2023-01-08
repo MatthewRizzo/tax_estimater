@@ -31,5 +31,7 @@ pub enum BracketErrors {
     #[error("Errors due to tax rate not being within [0, 1].")]
     TaxRateError(String),
     #[error("Errors due to bracket min and max")]
-    RangeError(String)
+    RangeError(String),
+    #[error("Errors due to overlap of two brackets")]
+    OverlapError(String),
 }
