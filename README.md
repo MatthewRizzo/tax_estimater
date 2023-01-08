@@ -67,5 +67,6 @@ poetry install
 
 ## TODO
 
+* Have path to federal and state json's be part of info passed to server
 * Add json for state tax brackets
 * Implement a true "Server" using protobufs and async threading
