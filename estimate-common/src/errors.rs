@@ -15,7 +15,7 @@ pub enum EstimaterErrors {
     #[error("Errors due to the server internally failing")]
     ServerError(String),
     #[error("Errors due to the an incorrect income being used for a bracket")]
-    BracketError(BracketErrors),
+    BracketError(#[from] BracketErrors),
     #[error("Errors due to the a file not existing.")]
     FileError(String),
     #[error("Errors due to serde deserializing a file.")]
