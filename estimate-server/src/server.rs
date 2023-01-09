@@ -10,9 +10,14 @@ use estimate_common::{
 
 use crate::tax_bracket::TaxBrackets;
 
-pub fn calculate_taxes(input_info: TaxInfo) -> EstimaterResult<TaxResults> {
-    let intermediate = IntermediateTaxData::new(&input_info);
-    println!("taxable income {}", intermediate.taxable_income);
+/// Calculates the taxes that will be levied for the given input
+///
+/// # Return
+///
+/// * `Error`: Some error explaining why the calculation could not be completed
+/// * `Ok(TaxResults)`: A breakdown of the taxes paid and the net income result
+pub fn calculate_taxes(input_info: &TaxInfo) -> EstimaterResult<TaxResults> {
+    let intermediate = IntermediateTaxData::new(input_info);
 
     // TODO: Add path to json file as part of Client CLI input / what is passed to server
     let tax_bracket =
@@ -25,9 +30,7 @@ pub fn calculate_taxes(input_info: TaxInfo) -> EstimaterResult<TaxResults> {
     };
 
     let state_tax = intermediate.taxable_income * (input_info.state_tax_rate_percent / 100.0);
-    let net_income = (input_info.gross_yearly_income as f64)
-        - -(federal_tax * intermediate.taxable_income)
-        - (state_tax * intermediate.taxable_income);
+    let net_income = (input_info.gross_yearly_income as f64) - federal_tax - state_tax;
     Ok(TaxResults::new(federal_tax, state_tax, net_income))
 }
 
@@ -56,6 +59,7 @@ fn get_path_to_data(file_name: &str) -> io::Result<PathBuf> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     #[test]
@@ -68,5 +72,43 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_taxes() {}
+    fn test_calculate_taxes() {
+        // TODO: remove federal and state tax % once the API is updated to relfect the change in
+        // server implementation.
+        let test_input_info = TaxInfo {
+            gross_yearly_income: 50000,
+            federal_tax_rate_percent: 0.0,
+            state_tax_rate_percent: 5.0,
+            pre_tax_deducations: 0.0,
+        };
+
+        let calculate_res =
+            calculate_taxes(&test_input_info).expect("Tax calculation should've worked");
+        assert!(
+            calculate_res.state_tax == 2500.0,
+            "Expected: 2500.0. Got: {}",
+            calculate_res.state_tax
+        );
+        assert!(
+            calculate_res.federal_tax == 6617.0,
+            "Income {}. Federal Tax Expected: 6617.0. Got: {}",
+            50000,
+            calculate_res.federal_tax
+        );
+
+        let test_input_info2 = TaxInfo {
+            gross_yearly_income: 100000,
+            federal_tax_rate_percent: 0.0,
+            state_tax_rate_percent: 5.0,
+            pre_tax_deducations: 0.0,
+        };
+        let calculate_res =
+            calculate_taxes(&test_input_info2).expect("Tax calculation should've worked");
+        assert!(
+            calculate_res.federal_tax == 17835.5,
+            "Income: {}. Federal Tax Expected: 17835.5. Got: {}",
+            100000,
+            calculate_res.federal_tax
+        );
+    }
 }

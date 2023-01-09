@@ -15,7 +15,7 @@ pub(crate) struct TaxBrackets {
 }
 
 /// Struct representing an individual tax bracket
-#[derive(Debug, Deserialize, Validate)]
+#[derive(Debug, Deserialize, Validate, Clone)]
 pub(crate) struct BracketInfo {
     /// The lower limit (inclusive) that this tax bracket is a part of.
     /// CANNOT overlap with max of previous!
@@ -33,7 +33,8 @@ pub(crate) struct BracketInfo {
     /// The overall taxes paid through all the previous tax brackets (excluding this one).
     /// This is the total amount of taxes that are required by all brackets BEFORE
     /// this one.
-    cumulative_previous_tax: Option<f64>,
+    #[validate(minimum = 0.0)]
+    cumulative_previous_tax: f64,
 }
 
 impl TaxBrackets {
@@ -50,7 +51,7 @@ impl TaxBrackets {
             let mut brackets: TaxBrackets = serde_json::from_reader(read_buffer)
                 .map_err(EstimaterErrors::SerdeDeserializeError)?;
             brackets.sort_brackets();
-            brackets.tabulate_cumulative_taxes();
+            brackets.tabulate_cumulative_taxes()?;
             brackets.validate_all_brackets()?;
             Ok(brackets)
         } else {
@@ -72,30 +73,34 @@ impl TaxBrackets {
     /// # Precondition
     /// The brackets are ordered by their bounds
     ///
-    pub fn tabulate_cumulative_taxes(&mut self) {
-        let mut total_cumalitive: f64 = 0.0;
+    pub fn tabulate_cumulative_taxes(&mut self) -> EstimaterResult<()> {
+        let mut prev_bracket: Option<BracketInfo> = None;
 
         for bracket in self.brackets.iter_mut() {
-            let cur_max_tax = bracket.calculate_bracket_tabulated_maximum();
-            if cur_max_tax.is_err() {
-                panic!(
-                    "Calulating the tabulated amount for the bracket failed.\n{:?}",
-                    cur_max_tax.err()
-                );
-            };
+            let prev_bracket_max = bracket.calculate_prev_bracket_max(&prev_bracket);
 
-            let opt_existing_cumalitive = bracket.cumulative_previous_tax;
-            if let Some(existing_cumalitive) = opt_existing_cumalitive {
-                if existing_cumalitive != total_cumalitive {
-                    panic!("Tabulating bracket costs failed. Cumalitive given: {}, calculated = {}. For bracket {}",
-                    existing_cumalitive, total_cumalitive, bracket)
+            match prev_bracket_max {
+                Err(_) => {
+                    panic!(
+                        "Calulating the tabulated amount for the bracket failed.\n{:?}",
+                        prev_bracket_max.err()
+                    );
+                }
+                Ok(prev_bracket_max) => {
+                    if prev_bracket_max != bracket.cumulative_previous_tax {
+                        let err_msg = format!(
+                            "The tabulated max {} does not match the expected {}",
+                            prev_bracket_max, bracket.cumulative_previous_tax
+                        );
+                        return Err(EstimaterErrors::ServerError(err_msg));
+                    } else {
+                        prev_bracket = Some(bracket.clone());
+                    }
                 }
             }
-            total_cumalitive =
-                BracketInfo::round_to_hundredths(total_cumalitive + cur_max_tax.unwrap());
-
-            bracket.cumulative_previous_tax = Some(total_cumalitive);
         }
+
+        Ok(())
     }
 
     /// # Pre-condition
@@ -138,9 +143,21 @@ impl TaxBrackets {
     /// # Return
     /// The amount to pay in taxes
     pub(crate) fn calculate_tax_amount(&self, taxable_income: f64) -> EstimaterResult<f64> {
+        if taxable_income == 0.0 {
+            return Ok(0.0);
+        }
+
         let tax_bracket_index = self.determine_correct_bracket(&taxable_income)?;
         let bracket_info = &self.brackets[tax_bracket_index];
-        bracket_info.calculate_bracket_taxes(taxable_income)
+
+        let prev_bracket: Option<BracketInfo> = if tax_bracket_index > 0 {
+            let prev_index = tax_bracket_index.wrapping_sub(1);
+            Some(self.brackets[prev_index].clone())
+        } else {
+            None
+        };
+
+        bracket_info.calculate_bracket_taxes(taxable_income, prev_bracket)
     }
 
     /// Given a taxable income. Determines the correct top bracket to put it in.
@@ -149,6 +166,10 @@ impl TaxBrackets {
     /// * The bracket index if it exists
     /// * `Err` - If the income does not have a valid bracket
     fn determine_correct_bracket(&self, taxable_income: &f64) -> BracketResult<usize> {
+        if taxable_income == &0.0 {
+            return Ok(0);
+        }
+
         self.brackets
             .iter()
             .position(|cur_bracket| {
@@ -179,13 +200,11 @@ impl fmt::Display for BracketInfo {
         write!(f, "bracket_min = {}. ", self.bracket_min)?;
         write!(f, "bracket_max = {}. ", self.bracket_max)?;
         write!(f, "tax_rate = {}. ", self.tax_rate)?;
-        if self.cumulative_previous_tax.is_some() {
-            write!(
-                f,
-                "cumulative_previous_tax = {}. ",
-                self.cumulative_previous_tax.unwrap()
-            )?;
-        }
+        write!(
+            f,
+            "cumulative_previous_tax = {}. ",
+            self.cumulative_previous_tax
+        )?;
         writeln!(f)
     }
 }
@@ -196,7 +215,7 @@ impl BracketInfo {
         bracket_min: u64,
         bracket_max: u64,
         tax_rate: f64,
-        cumulative_previous_tax: Option<f64>,
+        cumulative_previous_tax: f64,
     ) -> EstimaterResult<Self> {
         let validation_res = Self::validate_new_bracket(bracket_min, bracket_max, tax_rate);
         match validation_res {
@@ -245,20 +264,53 @@ impl BracketInfo {
 
     /// Calculates the taxes for the current bracket.
     ///
+    /// Applies the scaled amount relevant for this bracket adds in the
+    /// tabulated amount from previous brackets if applicable.
+    ///
     /// # Return
     ///
     /// * The tax amount if successful
     /// * `EstimaterErrors::BracketError` when the income is outside the bounds of taxable range
-    pub fn calculate_bracket_taxes(&self, taxable_income: f64) -> EstimaterResult<f64> {
-        let tax = self.tax_rate * taxable_income;
-        Ok(Self::round_to_hundredths(tax))
+    pub fn calculate_bracket_taxes(
+        &self,
+        taxable_income: f64,
+        previous_bracket: Option<Self>,
+    ) -> EstimaterResult<f64> {
+        let (current_bracket_tax, cumulative_previous_tax) = match previous_bracket {
+            None => {
+                let current_bracket_tax = self.tax_rate * taxable_income;
+                (current_bracket_tax, 0.0)
+            }
+            Some(prev_bracket) => {
+                let current_bracket_tax =
+                    self.tax_rate * (taxable_income - prev_bracket.bracket_max as f64);
+                (current_bracket_tax, self.cumulative_previous_tax)
+            }
+        };
+        let total_tax = current_bracket_tax + cumulative_previous_tax;
+
+        Ok(Self::round_to_hundredths(total_tax))
     }
 
     /// Calculates the (tabulated) maximum tax resulting from this tax bracket. i.e. the graduated
     /// taxes from this bracket if it is exceeded.
-    fn calculate_bracket_tabulated_maximum(&self) -> EstimaterResult<f64> {
-        let taxable_amount = self.bracket_max - self.bracket_min;
-        self.calculate_bracket_taxes(taxable_amount as f64)
+    ///
+    /// # General Formula
+    /// `cur.cum = prev.cum + ( (cur.min - prev.min) * prev.tax )`
+    ///
+    /// # Return
+    ///
+    /// * 0 When the previous bracket doesnt exist
+    fn calculate_prev_bracket_max(&self, previous_bracket: &Option<Self>) -> EstimaterResult<f64> {
+        if let Some(previous_bracket) = previous_bracket {
+            let prev_bracket_width = self.bracket_min - previous_bracket.bracket_min;
+            let prev_bracket_max =
+                Self::round_to_hundredths(prev_bracket_width as f64 * previous_bracket.tax_rate);
+            let cur_cumulative = previous_bracket.cumulative_previous_tax + prev_bracket_max;
+            Ok(cur_cumulative)
+        } else {
+            Ok(0.0)
+        }
     }
 
     /// A lot of tax documents only use 2 decimal sig-figs. To align our
@@ -293,6 +345,7 @@ impl Eq for BracketInfo {}
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
 
     /// Helper function to assert the result is Ok() and matches the given param
@@ -333,19 +386,93 @@ mod tests {
             "brackets": [
                 {
                     "bracket_max": 10275,
-                    "bracket_min": 0,
+                    "bracket_min": 1,
                     "cumulative_previous_tax": 0.0,
                     "tax_rate": 0.1
-                  },
-                  {
-                    "bracket_max": 41776,
+                },
+                {
+                    "bracket_max": 41775,
                     "bracket_min": 10276,
                     "cumulative_previous_tax": 1027.5,
                     "tax_rate": 0.12
-                  }
+                },
+                {
+                    "bracket_max": 89075,
+                    "bracket_min": 41776,
+                    "cumulative_previous_tax": 4807.50,
+                    "tax_rate": 0.22
+                }
             ]
         }"#;
         return serde_json::from_str(bracket_json_str).unwrap();
+    }
+
+    #[test]
+    fn test_calculate_prev_bracket_max() {
+        let bracket1 = BracketInfo {
+            bracket_min: 1,
+            bracket_max: 10275,
+            tax_rate: 0.1,
+            cumulative_previous_tax: 0.0,
+        };
+        let bracket2 = BracketInfo {
+            bracket_min: 10276,
+            bracket_max: 41775,
+            tax_rate: 0.12,
+            cumulative_previous_tax: 1027.5,
+        };
+        let bracket3 = BracketInfo {
+            bracket_min: 41776,
+            bracket_max: 89075,
+            tax_rate: 0.22,
+            cumulative_previous_tax: 4807.50,
+        };
+
+        let bracket1_res = bracket1.calculate_prev_bracket_max(&None);
+        let bracket1_cum_max = bracket1_res.as_ref().expect(
+            format!(
+                "calculate_prev_bracket_max failed for bracket1: {:?}",
+                bracket1_res
+            )
+            .as_str(),
+        );
+
+        assert!(
+            bracket1_cum_max == &0.0,
+            "Bracket tabulated maximum incorrect. Expected: {:?}. Got: {:?}",
+            0.0,
+            bracket1_cum_max
+        );
+
+        let found_bracket2_res = bracket2.calculate_prev_bracket_max(&Some(bracket1));
+        let found_bracket2_cum_max = found_bracket2_res.as_ref().expect(
+            format!(
+                "calculate_prev_bracket_max failed for bracket2: {:?}",
+                found_bracket2_res
+            )
+            .as_str(),
+        );
+        assert!(
+            found_bracket2_cum_max == &bracket2.cumulative_previous_tax,
+            "Bracket tabulated maximum incorrect. Expected: {:?}. Got: {:?}",
+            1027.5,
+            found_bracket2_cum_max
+        );
+
+        let found_bracket3_res = bracket3.calculate_prev_bracket_max(&Some(bracket2));
+        let found_bracket3_cum_max = found_bracket3_res.as_ref().expect(
+            format!(
+                "calculate_prev_bracket_max failed for bracket2: {:?}",
+                found_bracket2_res
+            )
+            .as_str(),
+        );
+        assert!(
+            found_bracket3_cum_max == &bracket3.cumulative_previous_tax,
+            "Bracket tabulated maximum incorrect. Expected: {:?}. Got: {:?}",
+            4807.50,
+            found_bracket3_cum_max
+        );
     }
 
     #[test]
@@ -354,24 +481,31 @@ mod tests {
         let overlap_bracket_json_str = r#"{
             "brackets": [
                 {
-                    "bracket_max": 10275,
+                    "bracket_max": 1,
                     "bracket_min": 0,
                     "cumulative_previous_tax": 0.0,
+                    "tax_rate": 0.0
+                },
+                {
+                    "bracket_max": 10275,
+                    "bracket_min": 1,
+                    "cumulative_previous_tax": 0.0,
                     "tax_rate": 0.1
-                  },
-                  {
+                },
+                {
                     "bracket_max": 30000,
                     "bracket_min": 500,
                     "cumulative_previous_tax": 1027.5,
                     "tax_rate": 0.12
-                  }
+                }
             ]
         }"#;
         let overlap_bracket: TaxBrackets = serde_json::from_str(overlap_bracket_json_str).unwrap();
 
         assert!(
             non_overlap_bracket.validate_all_brackets().is_ok(),
-            "Validating all brackets (without overlap), failed"
+            "Validating all brackets (without overlap), failed. Err: {:?}",
+            non_overlap_bracket.validate_all_brackets().err()
         );
         assert!(
             overlap_bracket.validate_all_brackets().is_err(),
@@ -411,13 +545,23 @@ mod tests {
     }
 
     #[test]
-    fn test_calculate_taxes() {
+    fn test_calculate_individual_taxes() {
         let brackets = help_make_test_brackets();
         help_assert_result(brackets.calculate_tax_amount(0.0), 0.0, "input of 0.0");
         help_assert_result(
             brackets.calculate_tax_amount(10275.0),
             1027.5,
             "input of 10275.0",
+        );
+        help_assert_result(
+            brackets.calculate_tax_amount(30000.0),
+            3394.50,
+            "input of 30000.0",
+        );
+        help_assert_result(
+            brackets.calculate_tax_amount(50000.0),
+            6617.0,
+            "input of 50000.0",
         );
     }
 }
